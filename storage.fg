@@ -11,7 +11,7 @@ fn valid_digest(value: string): int {
  return 1;
 }
 fn object_url(base: string, digest: string): string { return str_concat(str_concat(base,"/v1/objects/"),digest); }
-fn digest(path: string): string { return fs_digest(path); }
+fn digest(path: string): string { return str_concat("",fs_digest(path)); }
 fn put(base: string, token: string, path: string): int {
  let hash: string=digest(path); if (valid_digest(hash)==0) { return 0; }
  return fs_send_file(object_url(base,hash),"PUT",token,path);

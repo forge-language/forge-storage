@@ -88,3 +88,5 @@ STORAGE_TOKEN="$TEST_STORAGE_TOKEN" python3 tests/test_service.py \
 ```
 
 Pass `--root /path/to/test/data` when the test runner can inspect the service filesystem to verify temporary-file cleanup. Checks cover binary streaming, chunked uploads, authentication, checksum failures, immutable concurrent duplicates, metadata, HEAD, ranges, conditional reads, and oversized request headers. A service restart must retain the same object bytes when using its persistent volume.
+
+Version 0.1.1 fixes verified downloads when the expected hash comes directly from `storage.digest()`. Use 0.1.1 for new installs; existing 0.1.0 artifacts remain immutable. Digest strings returned by the Forge API are now stable snapshots rather than borrowed native buffers.

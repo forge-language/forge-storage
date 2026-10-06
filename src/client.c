@@ -62,8 +62,11 @@ static int fetch_file(const char *url,const char *path,int redirects) {
  int ok=code==CURLE_OK&&status==200&&fflush(f)==0&&fsync(fileno(f))==0;if(fclose(f))ok=0;return ok;
 }
 int64_t fs_receive_file(const char *url,const char *digest,const char *path) {
+ if(!url||!digest||strlen(digest)!=64||!path)return 0;
+ /* Digest may alias the thread-local result of fs_digest; preserve it before hashing the download. */
+ char expected[65];memcpy(expected,digest,sizeof(expected));
  char *tmp=NULL;if(asprintf(&tmp,"%s.part-XXXXXX",path)<0)return 0;int fd=mkstemp(tmp);if(fd<0){free(tmp);return 0;}close(fd);
- int ok=fetch_file(url,tmp,0)&&strcmp(fs_digest(tmp),digest)==0&&rename(tmp,path)==0;unlink(tmp);free(tmp);return ok;
+ int ok=fetch_file(url,tmp,0)&&strcmp(fs_digest(tmp),expected)==0&&rename(tmp,path)==0;unlink(tmp);free(tmp);return ok;
 }
 int64_t fs_fetch_archive(const char *url,const char *base,const char *token) {
  if(strncmp(url,"https://codeload.github.com/",28)!=0)return 0;
