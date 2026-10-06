@@ -1,0 +1,5 @@
+.env
+.deployment/
+build/
+data/
+__pycache__/

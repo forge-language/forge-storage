@@ -1,0 +1,38 @@
+import web;
+import storage;
+import strings;
+extern fn fs_method(request: int): string;
+extern fn fs_path(request: int): string;
+extern fn fs_header(request: int, name: string): string;
+extern fn fs_reply(request: int, status: int, body: string): int;
+extern fn fs_commit(request: int, digest: string): int;
+extern fn fs_serve(request: int, digest: string): int;
+extern fn fs_metadata(digest: string): string;
+extern fn fs_secret_equal(a: string,b: string): int;
+fn authorize(request: int): int {
+ let method: string=fs_method(request);let path: string=fs_path(request);
+ if (web.equal(path,"/health")==1 && web.equal(method,"GET")==1) { return 1; }
+ if (web.starts(path,"/v1/objects/")==0) { fs_reply(request,404,"{\"error\":\"not_found\"}");return 0; }
+ if (web.equal(method,"GET")==1 || web.equal(method,"HEAD")==1) { return 1; }
+ if (web.equal(method,"PUT")==0) { fs_reply(request,405,"{\"error\":\"method_not_allowed\"}");return 0; }
+ if (fs_secret_equal(fs_header(request,"Authorization"),str_concat("Bearer ",web.env("STORAGE_TOKEN","")))==0) { fs_reply(request,401,"{\"error\":\"unauthorized\"}");return 0; }
+ let hash: string=str_sub(path,12,str_len(path)-12);
+ if (storage.valid_digest(hash)==0) { fs_reply(request,400,"{\"error\":\"invalid_digest\"}");return 0; }
+ return 1;
+}
+fn dispatch(request: int): int {
+ let path: string=fs_path(request);
+ if (web.equal(path,"/health")==1) { return fs_reply(request,200,"{\"service\":\"forge-storage\",\"language\":\"Forge\"}"); }
+ let hash: string=str_sub(path,12,str_len(path)-12);
+ let metadata: int=0;
+ if (str_len(hash)==69 && web.equal(str_sub(hash,64,5),"/meta")==1) { hash=str_sub(hash,0,64);metadata=1; }
+ if (storage.valid_digest(hash)==0) { return fs_reply(request,400,"{\"error\":\"invalid_digest\"}"); }
+ if (web.equal(fs_method(request),"PUT")==1) {
+  let status: int=fs_commit(request,hash);
+  if (status==422) { return fs_reply(request,422,"{\"error\":\"checksum_mismatch\"}"); }
+  if (status==500) { return fs_reply(request,500,"{\"error\":\"storage_failure\"}"); }
+  return fs_reply(request,status,fs_metadata(hash));
+ }
+ if (metadata==1) { let body: string=fs_metadata(hash);if (str_len(body)==0) { return fs_reply(request,404,"{\"error\":\"not_found\"}"); }return fs_reply(request,200,body); }
+ return fs_serve(request,hash);
+}

@@ -1,0 +1,18 @@
+import storage;
+import web;
+native main {
+ let base: string=web.env("STORAGE_URL","http://127.0.0.1:18104");
+ let token: string=web.env("STORAGE_TOKEN","");
+ let path: string=web.env("STORAGE_FILE","artifact.tar.gz");
+ let hash: string=storage.digest(path);
+ if (storage.valid_digest(hash)==0) { println("File unavailable or exceeds the upload limit");return 1; }
+ let result: int=storage.put(base,token,path);
+ if (result==0) { println("Upload failed");return 1; }
+ println(web.dump(result));
+ let metadata: int=storage.info(base,hash);
+ if (web.field_int(metadata,"status")!=200) { return 1; }
+ println(web.dump(web.get(metadata,"data")));
+ if (storage.get(base,hash,"downloaded-artifact.tar.gz")==0) { println("Verified download failed");return 1; }
+ println("Verified download complete");
+ return 0;
+}

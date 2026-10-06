@@ -1,0 +1,8 @@
+cmake_minimum_required(VERSION 3.16)
+project(forge_storage VERSION 0.1.0 LANGUAGES C)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(STORAGE REQUIRED IMPORTED_TARGET libmicrohttpd json-c libcurl openssl)
+add_library(forge_storage STATIC src/client.c)
+target_compile_features(forge_storage PUBLIC c_std_11)
+target_link_libraries(forge_storage PUBLIC PkgConfig::STORAGE)
+target_compile_options(forge_storage PRIVATE -Wall -Wextra -Werror)

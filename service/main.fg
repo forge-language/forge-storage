@@ -1,0 +1,7 @@
+import web;
+import routes;
+extern fn fs_run(port: int): int;
+native main {
+ if (web.chars(web.env("STORAGE_TOKEN",""))<32) { println("STORAGE_TOKEN must contain at least 32 characters");return 1; }
+ return fs_run(web.integer(web.parse(web.env("PORT","8090"))));
+}

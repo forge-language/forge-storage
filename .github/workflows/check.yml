@@ -1,0 +1,50 @@
+name: Storage checks
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  service:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build isolated service image
+        run: docker build -f Containerfile -t forge-storage:test .
+      - name: Test object API and persistence
+        shell: bash
+        run: |
+          set -euo pipefail
+          export STORAGE_TOKEN="$(openssl rand -hex 32)"
+          docker volume create forge-storage-test
+          trap 'docker rm -f forge-storage-test >/dev/null 2>&1 || true; docker volume rm forge-storage-test >/dev/null 2>&1 || true' EXIT
+          docker run -d --name forge-storage-test -p 127.0.0.1:18105:8090 -e STORAGE_TOKEN -v forge-storage-test:/data forge-storage:test
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:18105/health >/dev/null; then break; fi
+            sleep 1
+          done
+          python3 tests/test_service.py --base http://127.0.0.1:18105
+          python3 tests/test_durability.py --base http://127.0.0.1:18105 --container forge-storage-test
+          docker exec forge-storage-test sh -c 'test -z "$(find /data -name ".upload-*" -print -quit)"'
+
+  publish:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: service
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Containerfile
+          push: true
+          tags: |
+            ghcr.io/forge-language/forge-storage:latest
+            ghcr.io/forge-language/forge-storage:${{ github.sha }}

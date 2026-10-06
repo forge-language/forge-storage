@@ -1,0 +1,27 @@
+import web;
+import strings;
+extern fn fs_digest(path: string): string;
+extern fn fs_send_file(url: string, method: string, token: string, path: string): int;
+extern fn fs_receive_file(url: string, digest: string, path: string): int;
+extern fn fs_fetch_archive(url: string, base: string, token: string): int;
+fn valid_digest(value: string): int {
+ if (str_len(value) != 64) { return 0; }
+ let i: int=0;
+ while (i<64) { let c: int=str_char_at(value,i); if ((c<48 || c>57) && (c<97 || c>102)) { return 0; } i=i+1; }
+ return 1;
+}
+fn object_url(base: string, digest: string): string { return str_concat(str_concat(base,"/v1/objects/"),digest); }
+fn digest(path: string): string { return fs_digest(path); }
+fn put(base: string, token: string, path: string): int {
+ let hash: string=digest(path); if (valid_digest(hash)==0) { return 0; }
+ return fs_send_file(object_url(base,hash),"PUT",token,path);
+}
+fn get(base: string, hash: string, path: string): int {
+ if (valid_digest(hash)==0) { return 0; }
+ return fs_receive_file(object_url(base,hash),hash,path);
+}
+fn info(base: string, hash: string): int {
+ if (valid_digest(hash)==0) { return 0; }
+ return web.request(str_concat(object_url(base,hash),"/meta"),"GET","","");
+}
+fn archive(url: string, base: string, token: string): int { return fs_fetch_archive(url,base,token); }
