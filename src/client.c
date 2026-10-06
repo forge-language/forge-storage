@@ -35,7 +35,11 @@ static CURL *handle(const char *url) {
  CURL *c=curl_easy_init();if(!c)return NULL;
  curl_easy_setopt(c,CURLOPT_URL,url);curl_easy_setopt(c,CURLOPT_NOSIGNAL,1L);
  curl_easy_setopt(c,CURLOPT_CONNECTTIMEOUT,5L);curl_easy_setopt(c,CURLOPT_TIMEOUT,180L);
+#if LIBCURL_VERSION_NUM >= 0x075500
  curl_easy_setopt(c,CURLOPT_PROTOCOLS_STR,"http,https");curl_easy_setopt(c,CURLOPT_REDIR_PROTOCOLS_STR,"https");
+#else
+ curl_easy_setopt(c,CURLOPT_PROTOCOLS,CURLPROTO_HTTP|CURLPROTO_HTTPS);curl_easy_setopt(c,CURLOPT_REDIR_PROTOCOLS,CURLPROTO_HTTPS);
+#endif
  curl_easy_setopt(c,CURLOPT_USERAGENT,"forge-storage/0.1.0");return c;
 }
 int64_t fs_send_file(const char *url,const char *method,const char *token,const char *path) {
