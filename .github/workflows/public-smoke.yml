@@ -1,0 +1,83 @@
+name: Public SDK and library smoke
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  public-download:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      FORGE_DOWNLOAD_BASE: https://forge-lang.org
+      FORGE_REGISTRY: builtin
+    steps:
+      - name: Install native build prerequisites
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends build-essential cmake pkg-config libmicrohttpd-dev libjson-c-dev libcurl4-openssl-dev libssl-dev
+      - name: Install the public Forge SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 2 --max-time 120 https://forge-lang.org/install.sh --output "$RUNNER_TEMP/install.sh"
+          curl --fail --location --retry 2 --max-time 120 https://forge-lang.org/releases/0.3.0-preview.5/forge-0.3.0-preview.5-linux-x86_64.tar.gz.sha256 --output "$RUNNER_TEMP/sdk.sha256"
+          test "$(cut -d ' ' -f 1 "$RUNNER_TEMP/sdk.sha256")" = d00412621b9eededb5dee692589c8b52f500066d0a55c05c7afc8223ab9f8147
+          bash "$RUNNER_TEMP/install.sh" --version 0.3.0-preview.5 --prefix "$RUNNER_TEMP/sdk" --no-modify-path
+          echo "$RUNNER_TEMP/sdk/bin" >> "$GITHUB_PATH"
+      - name: Compile and run Hello Forge
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP"
+          forge init public-sdk-smoke
+          cd public-sdk-smoke
+          forge run | tee "$RUNNER_TEMP/hello.log"
+          grep -F 'Hello, Forge!' "$RUNNER_TEMP/hello.log"
+      - name: Install the published storage library
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/public-sdk-smoke"
+          forge pkg add forge-storage 0.1.1
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          lock=json.loads(Path('forge.lock').read_text())
+          assert lock['registry']=='builtin'
+          package=lock['packages']['forge-storage']
+          assert package['version']=='0.1.1'
+          assert package['git_commit']=='4b6dda70ffb54ce86c5cebfe245d6b09a1df890d'
+          assert lock['packages']['forge-web']['version']=='0.1.3'
+          for name,value in lock['packages'].items():
+              artifact=value['artifact']
+              assert artifact['url'].startswith('https://storage.forge-lang.org/v1/objects/')
+              directory=Path('.forge/packages')/name/value['git_commit']
+              marker=json.loads((directory/'.forge-artifact').read_text())
+              assert marker['sha256']==artifact['sha256']
+              assert marker['git_commit']==value['git_commit']
+              assert not (directory/'.git').exists()
+          with open(os.environ['GITHUB_ENV'],'a') as env:
+              env.write('FORGE_SMOKE_OBJECT='+package['artifact']['sha256']+'\n')
+          print('Published library source pins and verified archive markers matched')
+          PY
+      - name: Build the library and read public object metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/public-sdk-smoke"
+          cat > main.fg <<'FORGE'
+          import web;
+          import storage;
+          native main {
+            web.scope_begin();
+            let hash: string=web.env("FORGE_SMOKE_OBJECT","");
+            let result: int=storage.info("https://storage.forge-lang.org",hash);
+            if (web.field_int(result,"status")!=200) { println("Public metadata request failed");web.scope_end();return 1; }
+            let metadata: int=web.get(result,"data");
+            if (web.equal(web.field_text(metadata,"sha256"),hash)==0 || web.field_int(metadata,"size")<=0) { web.scope_end();return 1; }
+            println("Public Forge Storage metadata verified");
+            web.scope_end();return 0;
+          }
+          FORGE
+          forge build
+          ./build/app
