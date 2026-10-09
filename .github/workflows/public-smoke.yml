@@ -20,9 +20,9 @@ jobs:
         run: |
           set -euo pipefail
           curl --fail --location --retry 2 --max-time 120 https://forge-lang.org/install.sh --output "$RUNNER_TEMP/install.sh"
-          curl --fail --location --retry 2 --max-time 120 https://forge-lang.org/releases/0.3.0-preview.5/forge-0.3.0-preview.5-linux-x86_64.tar.gz.sha256 --output "$RUNNER_TEMP/sdk.sha256"
-          test "$(cut -d ' ' -f 1 "$RUNNER_TEMP/sdk.sha256")" = d00412621b9eededb5dee692589c8b52f500066d0a55c05c7afc8223ab9f8147
-          bash "$RUNNER_TEMP/install.sh" --version 0.3.0-preview.5 --prefix "$RUNNER_TEMP/sdk" --no-modify-path
+          curl --fail --location --retry 2 --max-time 120 https://forge-lang.org/releases/0.3.0-preview.6/forge-0.3.0-preview.6-linux-x86_64.tar.gz.sha256 --output "$RUNNER_TEMP/sdk.sha256"
+          test "$(cut -d ' ' -f 1 "$RUNNER_TEMP/sdk.sha256")" = 71bacfd50e635dc5b9edcd710e2365317eb31b9c6ccc23686fd7530b713f66ad
+          bash "$RUNNER_TEMP/install.sh" --version 0.3.0-preview.6 --prefix "$RUNNER_TEMP/sdk" --no-modify-path
           echo "$RUNNER_TEMP/sdk/bin" >> "$GITHUB_PATH"
       - name: Compile and run Hello Forge
         shell: bash
@@ -79,5 +79,7 @@ jobs:
             web.scope_end();return 0;
           }
           FORGE
+          forge trust forge-web
+          forge trust forge-storage
           forge build
           ./build/app
